@@ -3,13 +3,15 @@ import boto3
 import json
 import uuid
 import time
+import os
 
-BUCKET='clipboard-bucket2'
-HASH_FILE='hashes'
+CLIPBOARD_TABLE = os.environ['CLIPBOARD_TABLE']
+LINK_TABLE = os.environ['LINK_TABLE']
 TOKEN_PARAM='TOKEN'
+SHORTHASH_PARAM='shortHash'
 TEXT_PARAM='text'
 
-s3_client = boto3.client('s3')
+s3_client = boto3.client('dynamodb')
 
 def push_clipboard(event, context):
     text = event['queryStringParameters'][TEXT_PARAM]
@@ -20,8 +22,13 @@ def push_clipboard(event, context):
             "statusCode": 404,
         }
 
-    s3_client.put_object(Body=text,
-            Bucket=BUCKET, Key=token)
+    resp = s3_client.put_item(
+               TableName=CLIPBOARD_TABLE,
+               Item={
+                   'token': {'S': token },
+                   'text': {'S': text },
+               }
+           )
 
     return {
         "statusCode": 200,
@@ -37,73 +44,65 @@ def pull_clipboard(event, context):
             "statusCode": 404,
         }
 
-    obj = s3_client.get_object(Bucket=BUCKET, Key=token)
-    text = obj['Body'].read().decode('utf-8')
+    resp = s3_client.get_item(TableName=CLIPBOARD_TABLE,
+                           Key= {
+                                'token': { 'S': token }
+                           })
+
+    item = resp.get('Item')
+
+    if not item:
+        return {
+            "statusCode": 404,
+        }
+
+    text = item.get('text').get('S')
 
     return {
         "statusCode": 200,
         "body": json.dumps({
-            "text": text
+            TEXT_PARAM: text
         })
     }
 
 def open_clipboard(event, context):
 
-    try:
-        obj = s3_client.get_object(Bucket=BUCKET, Key=HASH_FILE)
-        hashes = json.loads(obj['Body'].read().decode('utf-8'))
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        if error_code == "AccessDenied":
-             raise e
-        elif error_code == "InvalidLocationConstraint":
-            # Not found
-            hashes = {}
-
     token = uuid.uuid4()
     token = token.hex
 
-    new_entry = { "token": token, "ttl": int(time.time()) }
-    hashes[token[0:6]] = json.dumps(new_entry)
-
-    s3_client.put_object(Body=json.dumps(hashes),
-            Bucket=BUCKET, Key=HASH_FILE)
+    resp = s3_client.put_item(
+               TableName=LINK_TABLE,
+               Item={
+                   'shortHash': {'S': token[0:6] },
+                   'token': {'S': token },
+                   'ttl': {'S': str(int(time.time())) },
+               }
+           )
 
     return {
         "statusCode": 200,
         "body": json.dumps({
-            "text": new_entry["token"]
+            TEXT_PARAM: token
         })
     }
 
 def link_clipboard(event, context):
 
-    try:
-        obj = s3_client.get_object(Bucket=BUCKET, Key=HASH_FILE)
-        hashes = json.loads(obj['Body'].read().decode('utf-8'))
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        if error_code == "AccessDenied":
-            raise e
-        elif error_code == "InvalidLocationConstraint":
-            # Not found
-            hashes = {}
+    short_token = event['queryStringParameters'][SHORTHASH_PARAM]
 
-    short_token = event['queryStringParameters'][TEXT_PARAM]
+    resp = s3_client.get_item(TableName=LINK_TABLE,
+                           Key= {
+                                'shortHash': { 'S': short_token }
+                           })
 
-    if not hashes[short_token]:
+    item = resp.get('Item')
+
+    if not item:
         return {
             "statusCode": 404,
         }
 
-    return {
-        "statusCode": 200,
-        "body": json.dumps({
-            "text": hashes[short_token]
-        })
-    }
-    ttl = int(hashes[short_token]['ttl'])
-
+    ttl = int(item.get('ttl').get('S'))
 
     current_time = int(time.time())
     if current_time - ttl > 30:
@@ -114,6 +113,6 @@ def link_clipboard(event, context):
     return {
         "statusCode": 200,
         "body": json.dumps({
-            "text": hashes[short_token]['token']
+            TOKEN_PARAM: item.get('token').get('S')
         })
     }

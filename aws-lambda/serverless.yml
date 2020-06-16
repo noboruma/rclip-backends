@@ -11,7 +11,7 @@
 #
 # Happy Coding!
 
-service: rclipaws
+service: rclipaws-lambda
 # app and org for use with dashboard.serverless.com
 #app: your-app-name
 #org: your-org-name
@@ -19,6 +19,9 @@ service: rclipaws
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
 # frameworkVersion: "=X.X.X"
+custom:
+  linkTableName: 'link-${self:provider.stage}'
+  clipTableName: 'clipboard-${self:provider.stage}'
 
 provider:
   name: aws
@@ -30,16 +33,20 @@ provider:
 
 # you can add statements to the Lambda function's IAM Role here
   iamRoleStatements:
-    - Effect: "Allow"
+    - Effect: Allow
       Action:
-        - "s3:PutObject"
-        - "s3:GetObject"
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
       Resource:
-        Fn::Join:
-          - ""
-          - - "arn:aws:s3:::"
-            - "Ref" : "ClipboardBucket"
-            - "/*"
+        - { "Fn::GetAtt": ["ClipboardTable", "Arn" ] }
+        - { "Fn::GetAtt": ["LinkTable", "Arn" ] }
+  environment:
+    CLIPBOARD_TABLE: ${self:custom.clipTableName}
+    LINK_TABLE: ${self:custom.linkTableName}
 
 # you can define service wide environment variables here
 #  environment:
@@ -79,50 +86,33 @@ functions:
       - http:
           path: link
           method: get
-#    The following are a few example events you can configure
-#    NOTE: Please make sure to change your handler code to work with those events
-#    Check the event documentation for details
-#      - websocket: $connect
-#      - s3: ${env:BUCKET}
-#      - schedule: rate(10 minutes)
-#      - sns: greeter-topic
-#      - stream: arn:aws:dynamodb:region:XXXXXX:table/foo/stream/1970-01-01T00:00:00.000
-#      - alexaSkill: amzn1.ask.skill.xx-xx-xx-xx
-#      - alexaSmartHome: amzn1.ask.skill.xx-xx-xx-xx
-#      - iot:
-#          sql: "SELECT * FROM 'some_topic'"
-#      - cloudwatchEvent:
-#          event:
-#            source:
-#              - "aws.ec2"
-#            detail-type:
-#              - "EC2 Instance State-change Notification"
-#            detail:
-#              state:
-#                - pending
-#      - cloudwatchLog: '/aws/lambda/hello'
-#      - cognitoUserPool:
-#          pool: MyUserPool
-#          trigger: PreSignUp
-#      - alb:
-#          listenerArn: arn:aws:elasticloadbalancing:us-east-1:XXXXXX:listener/app/my-load-balancer/50dc6c495c0c9188/
-#          priority: 1
-#          conditions:
-#            host: example.com
-#            path: /hello
-
-#    Define function environment variables here
-#    environment:
-#      variable2: value2
 
 # you can add CloudFormation resource templates here
 resources:
   Resources:
-    ClipboardBucket:
-      Type: AWS::S3::Bucket
+    LinkTable:
+      Type: AWS::DynamoDB::Table
       Properties:
-        BucketName: clipboard-bucket2
-#  Outputs:
-#     NewOutput:
-#       Description: "Description for the output"
-#       Value: "Some output value"
+        TableName: ${self:custom.linkTableName}
+        AttributeDefinitions:
+          - AttributeName: shortHash
+            AttributeType: S
+        KeySchema:
+          - AttributeName: shortHash
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    ClipboardTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.clipTableName}
+        AttributeDefinitions:
+          - AttributeName: token
+            AttributeType: S
+        KeySchema:
+          - AttributeName: token
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
