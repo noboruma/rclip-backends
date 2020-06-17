@@ -67,8 +67,11 @@ def pull_clipboard(event, context):
 
 def open_clipboard(event, context):
 
-    token = uuid.uuid4()
-    token = token.hex
+    token = event['queryStringParameters'][TOKEN_PARAM]
+
+    if not token:
+        token = uuid.uuid4()
+        token = token.hex
 
     resp = s3_client.put_item(
                TableName=LINK_TABLE,
