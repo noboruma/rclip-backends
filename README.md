@@ -4,6 +4,10 @@ Back-ends that can be used with the [rclip](https://github.com/noboruma/rclip) C
 
 /!\ At the moment, only AWS lambda is supported.
 
+Setup demo:
+
+<a href="https://asciinema.org/a/340551?loop=1&autoplay=1&speed=3"><img src="https://asciinema.org/a/340551.svg" width="400"/></a>
+
 To deploy a new back-end:
 - `git clone https://github.com/noboruma/rclip-backends`
 - install `serverless`
