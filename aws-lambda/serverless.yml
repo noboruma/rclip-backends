@@ -26,6 +26,9 @@ custom:
 provider:
   name: aws
   runtime: python2.7
+  usagePlan:
+      limit: 1000
+      period: MONTH
 
 # you can overwrite defaults here
 #  stage: dev
@@ -64,24 +67,28 @@ provider:
 functions:
   push:
     handler: handler.push_clipboard
+    memorySize: 128
     events:
       - http:
           path: push
           method: get
   pull:
     handler: handler.pull_clipboard
+    memorySize: 128
     events:
       - http:
           path: pull
           method: get
   open:
     handler: handler.open_clipboard
+    memorySize: 128
     events:
       - http:
           path: open
           method: get
   link:
     handler: handler.link_clipboard
+    memorySize: 128
     events:
       - http:
           path: link
