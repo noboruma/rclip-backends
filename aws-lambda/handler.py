@@ -32,6 +32,11 @@ def push_clipboard(event, context):
 
     return {
         "statusCode": 200,
+        "headers": {
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET'
+        },
         "body": "{}"
     }
 
@@ -60,18 +65,34 @@ def pull_clipboard(event, context):
 
     return {
         "statusCode": 200,
+        "headers": {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Credentials': 'true',
+        },
         "body": json.dumps({
             TEXT_PARAM: text
         })
     }
 
+def generate_valid_unique_token():
+    token = ""
+    item = not None
+    while item != None:
+        token = uuid.uuid4()
+        token = token.hex
+        resp = s3_client.get_item(TableName=LINK_TABLE,
+                Key= {
+                    'shortHash': { 'S': token[0:6] }
+                    })
+        item = resp.get('Item')
+    return token
+
 def open_clipboard(event, context):
 
     token = event['queryStringParameters'][TOKEN_PARAM]
 
-    if not token:
-        token = uuid.uuid4()
-        token = token.hex
+    if not token or token.empty:
+        token = generate_valid_unique_token()
 
     resp = s3_client.put_item(
                TableName=LINK_TABLE,
@@ -84,6 +105,10 @@ def open_clipboard(event, context):
 
     return {
         "statusCode": 200,
+        "headers": {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Credentials': 'true',
+        },
         "body": json.dumps({
             TEXT_PARAM: token
         })
@@ -115,6 +140,10 @@ def link_clipboard(event, context):
 
     return {
         "statusCode": 200,
+        "headers": {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Credentials': 'true',
+        },
         "body": json.dumps({
             TOKEN_PARAM: item.get('token').get('S')
         })

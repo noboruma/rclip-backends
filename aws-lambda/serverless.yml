@@ -72,6 +72,7 @@ functions:
       - http:
           path: push
           method: get
+          cors: true
   pull:
     handler: handler.pull_clipboard
     memorySize: 128
@@ -79,6 +80,7 @@ functions:
       - http:
           path: pull
           method: get
+          cors: true
   open:
     handler: handler.open_clipboard
     memorySize: 128
@@ -86,6 +88,7 @@ functions:
       - http:
           path: open
           method: get
+          cors: true
   link:
     handler: handler.link_clipboard
     memorySize: 128
@@ -93,6 +96,7 @@ functions:
       - http:
           path: link
           method: get
+          cors: true
 
 # you can add CloudFormation resource templates here
 resources:
