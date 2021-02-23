@@ -91,17 +91,22 @@ def open_clipboard(event, context):
 
     token = event['queryStringParameters'][TOKEN_PARAM]
 
-    if not token or token.empty:
+    if not token or token == '':
         token = generate_valid_unique_token()
+    else:
+        s3_client.delete_item(TableName=LINK_TABLE,
+                Key= {
+                    'shortHash': {'S': token[0:6] }
+                    })
 
-    resp = s3_client.put_item(
-               TableName=LINK_TABLE,
-               Item={
-                   'shortHash': {'S': token[0:6] },
-                   'token': {'S': token },
-                   'ttl': {'S': str(int(time.time())) },
-               }
-           )
+    s3_client.put_item(
+            TableName=LINK_TABLE,
+            Item={
+                'shortHash': {'S': token[0:6] },
+                'token': {'S': token },
+                'ttl': {'S': str(int(time.time())) },
+                }
+            )
 
     return {
         "statusCode": 200,
