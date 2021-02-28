@@ -4,14 +4,28 @@ import json
 import uuid
 import time
 import os
+import crypt_utils
 
 CLIPBOARD_TABLE = os.environ['CLIPBOARD_TABLE']
-LINK_TABLE = os.environ['LINK_TABLE']
-TOKEN_PARAM='TOKEN'
-SHORTHASH_PARAM='shortHash'
-TEXT_PARAM='text'
+LINK_TABLE      = os.environ['LINK_TABLE']
+CUSTOMERS_TABLE = os.environ['CUSTOMERS_TABLE']
+NAMESPACE_TABLE = os.environ['NAMESPACE_TABLE']
+TOKEN_PARAM     = 'TOKEN'
+NAMESPACE_PARAM = 'NAMESPACE'
+SHORTHASH_PARAM = 'shortHash'
+TEXT_PARAM      = 'text'
 
-s3_client = boto3.client('dynamodb')
+ddb_client = boto3.client('dynamodb')
+
+def trim_escape_token(token):
+    return token[0:6]
+
+def is_namespace_valid(namespace):
+    resp = ddb_client.get_item(TableName=NAMESPACE_TABLE,
+            Key= {
+                'namespace': { 'S': namespace }
+                })
+    return resp.get('Item') != None
 
 def push_clipboard(event, context):
     text = event['queryStringParameters'][TEXT_PARAM]
@@ -21,8 +35,19 @@ def push_clipboard(event, context):
         return {
             "statusCode": 404,
         }
+    else:
+        token = trim_escape_token(token)
 
-    resp = s3_client.put_item(
+    if NAMESPACE_PARAM in event['queryStringParameters']:
+        namespace = event['queryStringParameters'][NAMESPACE_PARAM]
+        if not is_namespace_valid(namespace):
+            return {
+                "statusCode": 405,
+            }
+        token = namespace + token
+
+
+    ddb_client.put_item(
                TableName=CLIPBOARD_TABLE,
                Item={
                    'token': {'S': token },
@@ -48,8 +73,18 @@ def pull_clipboard(event, context):
         return {
             "statusCode": 404,
         }
+    else:
+        token = trim_escape_token(token)
 
-    resp = s3_client.get_item(TableName=CLIPBOARD_TABLE,
+    if NAMESPACE_PARAM in event['queryStringParameters']:
+        namespace = event['queryStringParameters'][NAMESPACE_PARAM]
+        if not is_namespace_valid(namespace):
+            return {
+                "statusCode": 405,
+            }
+        token = namespace + token
+
+    resp = ddb_client.get_item(TableName=CLIPBOARD_TABLE,
                            Key= {
                                 'token': { 'S': token }
                            })
@@ -79,10 +114,10 @@ def generate_valid_unique_token():
     item = not None
     while item != None:
         token = uuid.uuid4()
-        token = token.hex
-        resp = s3_client.get_item(TableName=LINK_TABLE,
+        token = token.hex[0:6]
+        resp = ddb_client.get_item(TableName=LINK_TABLE,
                 Key= {
-                    'shortHash': { 'S': token[0:6] }
+                    'shortHash': { 'S': token }
                     })
         item = resp.get('Item')
     return token
@@ -94,15 +129,26 @@ def open_clipboard(event, context):
     if not token or token == '':
         token = generate_valid_unique_token()
     else:
-        s3_client.delete_item(TableName=LINK_TABLE,
+        token = trim_escape_token(token)
+        ddb_client.delete_item(TableName=LINK_TABLE,
                 Key= {
-                    'shortHash': {'S': token[0:6] }
+                    'shortHash': {'S': token }
                     })
 
-    s3_client.put_item(
+    shortToken = token[0:6]
+
+    if NAMESPACE_PARAM in event['queryStringParameters']:
+        namespace = event['queryStringParameters'][NAMESPACE_PARAM]
+        if not is_namespace_valid(namespace):
+            return {
+                "statusCode": 405,
+            }
+        token = namespace + token
+
+    ddb_client.put_item(
             TableName=LINK_TABLE,
             Item={
-                'shortHash': {'S': token[0:6] },
+                'shortHash': {'S': shortToken },
                 'token': {'S': token },
                 'ttl': {'S': str(int(time.time())) },
                 }
@@ -123,7 +169,14 @@ def link_clipboard(event, context):
 
     short_token = event['queryStringParameters'][SHORTHASH_PARAM]
 
-    resp = s3_client.get_item(TableName=LINK_TABLE,
+    if not short_token:
+        return {
+            "statusCode": 404,
+        }
+    else:
+        short_token = trim_escape_token(short_token)
+
+    resp = ddb_client.get_item(TableName=LINK_TABLE,
                            Key= {
                                 'shortHash': { 'S': short_token }
                            })
@@ -153,3 +206,38 @@ def link_clipboard(event, context):
             TOKEN_PARAM: item.get('token').get('S')
         })
     }
+
+def login_clipboard(event, context):
+
+    email = event['queryStringParameters']['email']
+    crypted_text = crypt_utils.md5_encrypt(event['queryStringParameters']['passwd'])
+
+    resp = ddb_client.get_item(TableName=CUSTOMERS_TABLE,
+                           Key= {
+                                'email': { 'S': email }
+                           })
+
+    item = resp.get('Item')
+
+    if not item:
+        return {
+            "statusCode": 404,
+        }
+
+    crypted_passwd = item.get('passwd').get('S')
+
+    if crypted_text == crypted_passwd:
+        return {
+            "statusCode": 200,
+            "headers": {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Credentials': 'true',
+            },
+            "body": json.dumps({
+                NAMESPACE_PARAM: item.get('namespace').get('S')
+            })
+        }
+    else:
+        return {
+            "statusCode": 405,
+        }

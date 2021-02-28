@@ -22,12 +22,14 @@ service: rclipaws-lambda
 custom:
   linkTableName: 'link-${self:provider.stage}'
   clipTableName: 'clipboard-${self:provider.stage}'
+  namespaceTableName: 'namespace-${self:provider.stage}'
+  customersTableName: 'customers-${self:provider.stage}'
 
 provider:
   name: aws
-  runtime: python2.7
+  runtime: python3.8
   usagePlan:
-      limit: 1000
+      limit: 10
       period: MONTH
 
 # you can overwrite defaults here
@@ -36,6 +38,12 @@ provider:
 
 # you can add statements to the Lambda function's IAM Role here
   iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - secretsmanager:GetSecretValue
+      Resource:
+        - Fn::Join: ["", [ "arn:aws:secretsmanager:", { "Ref": "AWS::Region" }, ':', { Ref: "AWS::AccountId" }, ":secret:stripe_secrets-nCCu78" ]]
+        - Fn::Join: ["", [ "arn:aws:secretsmanager:", { "Ref": "AWS::Region" }, ':', { Ref: "AWS::AccountId" }, ":secret:smtp_secrets-NQ64HL" ]]
     - Effect: Allow
       Action:
         - dynamodb:Query
@@ -47,9 +55,13 @@ provider:
       Resource:
         - { "Fn::GetAtt": ["ClipboardTable", "Arn" ] }
         - { "Fn::GetAtt": ["LinkTable", "Arn" ] }
+        - { "Fn::GetAtt": ["NamespaceTable", "Arn" ] }
+        - { "Fn::GetAtt": ["CustomersTable", "Arn" ] }
   environment:
     CLIPBOARD_TABLE: ${self:custom.clipTableName}
     LINK_TABLE: ${self:custom.linkTableName}
+    NAMESPACE_TABLE: ${self:custom.namespaceTableName}
+    CUSTOMERS_TABLE: ${self:custom.customersTableName}
 
 # you can define service wide environment variables here
 #  environment:
@@ -66,7 +78,7 @@ provider:
 
 functions:
   push:
-    handler: handler.push_clipboard
+    handler: clipboard_handler.push_clipboard
     memorySize: 128
     events:
       - http:
@@ -74,7 +86,7 @@ functions:
           method: get
           cors: true
   pull:
-    handler: handler.pull_clipboard
+    handler: clipboard_handler.pull_clipboard
     memorySize: 128
     events:
       - http:
@@ -82,7 +94,7 @@ functions:
           method: get
           cors: true
   open:
-    handler: handler.open_clipboard
+    handler: clipboard_handler.open_clipboard
     memorySize: 128
     events:
       - http:
@@ -90,12 +102,52 @@ functions:
           method: get
           cors: true
   link:
-    handler: handler.link_clipboard
+    handler: clipboard_handler.link_clipboard
     memorySize: 128
     events:
       - http:
           path: link
           method: get
+          cors: true
+  login:
+    handler: clipboard_handler.login_clipboard
+    memorySize: 128
+    events:
+      - http:
+          path: login
+          method: get
+          cors: true
+  checkout_namespace:
+    handler: web_handler.checkout_namespace
+    memorySize: 128
+    events:
+      - http:
+          path: checkout_namespace
+          method: post
+          cors: true
+  checkout_session:
+    handler: web_handler.checkout_session
+    memorySize: 128
+    events:
+      - http:
+          path: checkout_session
+          method: get
+          cors: true
+  customer_portal:
+    handler: web_handler.customer_portal
+    memorySize: 128
+    events:
+      - http:
+          path: customer_portal
+          method: post
+          cors: true
+  webhook_payment_received:
+    handler: web_handler.webhook_payment_received
+    memorySize: 128
+    events:
+      - http:
+          path: webhook_payment_received
+          method: post
           cors: true
 
 # you can add CloudFormation resource templates here
@@ -114,6 +166,19 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+    NamespaceTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.namespaceTableName}
+        AttributeDefinitions:
+          - AttributeName: namespace
+            AttributeType: S
+        KeySchema:
+          - AttributeName: namespace
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
     ClipboardTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -127,3 +192,19 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+    CustomersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.customersTableName}
+        AttributeDefinitions:
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: email
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+plugins:
+  - serverless-python-requirements
