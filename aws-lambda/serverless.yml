@@ -85,6 +85,7 @@ functions:
           path: push
           method: get
           cors: true
+    reservedConcurrency: 1
   pull:
     handler: clipboard_handler.pull_clipboard
     memorySize: 128
@@ -93,6 +94,7 @@ functions:
           path: pull
           method: get
           cors: true
+    reservedConcurrency: 1
   open:
     handler: clipboard_handler.open_clipboard
     memorySize: 128
@@ -101,6 +103,7 @@ functions:
           path: open
           method: get
           cors: true
+    reservedConcurrency: 1
   link:
     handler: clipboard_handler.link_clipboard
     memorySize: 128
@@ -109,6 +112,7 @@ functions:
           path: link
           method: get
           cors: true
+    reservedConcurrency: 1
   login:
     handler: clipboard_handler.login_clipboard
     memorySize: 128
@@ -117,6 +121,7 @@ functions:
           path: login
           method: get
           cors: true
+    reservedConcurrency: 1
   checkout_namespace:
     handler: web_handler.checkout_namespace
     memorySize: 128
@@ -125,6 +130,7 @@ functions:
           path: checkout_namespace
           method: post
           cors: true
+    reservedConcurrency: 1
   checkout_session:
     handler: web_handler.checkout_session
     memorySize: 128
@@ -133,6 +139,7 @@ functions:
           path: checkout_session
           method: get
           cors: true
+    reservedConcurrency: 1
   customer_portal:
     handler: web_handler.customer_portal
     memorySize: 128
@@ -141,6 +148,7 @@ functions:
           path: customer_portal
           method: post
           cors: true
+    reservedConcurrency: 1
   webhook_payment_received:
     handler: web_handler.webhook_payment_received
     memorySize: 128
@@ -149,6 +157,7 @@ functions:
           path: webhook_payment_received
           method: post
           cors: true
+    reservedConcurrency: 1
 
 # you can add CloudFormation resource templates here
 resources:

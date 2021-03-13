@@ -131,7 +131,7 @@ def checkout_namespace(event, context):
     session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{
-                'price': 'price_1IPtwWL0K0gJMCg8o52LDoxy',
+                'price': secrets_utils.get_secret('stripe_secrets')['product_id'],
                 'quantity': 1,
                 }],
             mode='subscription',
