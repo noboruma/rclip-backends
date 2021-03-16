@@ -1,16 +1,3 @@
-# Welcome to Serverless!
-#
-# This file is the main config file for your service.
-# It's very minimal at this point and uses default values.
-# You can always add more config options for more control.
-# We've included some commented out config examples here.
-# Just uncomment any of them to get that config option.
-#
-# For full config options, check the docs:
-#    docs.serverless.com
-#
-# Happy Coding!
-
 service: rclipaws-lambda
 # app and org for use with dashboard.serverless.com
 #app: your-app-name
@@ -24,10 +11,17 @@ custom:
   clipTableName: 'clipboard-${self:provider.stage}'
   namespaceTableName: 'namespace-${self:provider.stage}'
   customersTableName: 'customers-${self:provider.stage}'
+  codebaseBucket: 'codebase-bucket-${self:provider.stage}'
 
 provider:
   name: aws
   runtime: python3.8
+  deploymentBucket:
+    name: ${self:custom.codebaseBucket}
+    serverSideEncryption: AES256
+    versioning: true
+    accelerate: true
+    blockPublicAccess: true
   usagePlan:
       limit: 10
       period: MONTH
@@ -36,7 +30,6 @@ provider:
 #  stage: dev
 #  region: us-east-1
 
-# you can add statements to the Lambda function's IAM Role here
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -63,19 +56,6 @@ provider:
     NAMESPACE_TABLE: ${self:custom.namespaceTableName}
     CUSTOMERS_TABLE: ${self:custom.customersTableName}
 
-# you can define service wide environment variables here
-#  environment:
-#    variable1: value1
-
-# you can add packaging information here
-#package:
-#  include:
-#    - include-me.py
-#    - include-me-dir/**
-#  exclude:
-#    - exclude-me.py
-#    - exclude-me-dir/**
-
 functions:
   push:
     handler: clipboard_handler.push_clipboard
@@ -84,6 +64,10 @@ functions:
       - http:
           path: push
           method: get
+          cors: true
+      - http:
+          path: push
+          method: post
           cors: true
     reservedConcurrency: 1
   pull:
@@ -159,7 +143,6 @@ functions:
           cors: true
     reservedConcurrency: 1
 
-# you can add CloudFormation resource templates here
 resources:
   Resources:
     LinkTable:
@@ -217,3 +200,4 @@ resources:
 
 plugins:
   - serverless-python-requirements
+  - serverless-deployment-bucket

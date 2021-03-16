@@ -8,6 +8,7 @@ import stripe
 import crypt_utils
 import smtp_utils
 import secrets_utils
+import http_utils
 
 NAMESPACE_TABLE = os.environ['NAMESPACE_TABLE']
 CUSTOMERS_TABLE = os.environ['CUSTOMERS_TABLE']
@@ -62,9 +63,7 @@ def webhook_payment_received(event, context):
         event_type = pay_event['type']
         data_object = data['object']
     except Exception:
-        return {
-            "statusCode": 403,
-        }
+        return http_utils.response_with_cors(http_utils.FORBIDDEN)
 
     try:
         if event_type == 'checkout.session.completed':
@@ -109,22 +108,9 @@ def webhook_payment_received(event, context):
                       }
             )
     except Exception as e:
-        return {
-            "statusCode": 500,
-            "headers": {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Credentials': 'true',
-            },
-            "body": str(e)
-        }
+        return http_utils.response_with_cors(http_utils.INTERNAL_ERROR, str(e))
 
-    return {
-        "statusCode": 200,
-        "headers": {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Credentials': 'true',
-        },
-    }
+    return http_utils.response_with_cors(http_utils.SUCCESS)
 
 def checkout_namespace(event, context):
     stripe.api_key =  secrets_utils.get_secret('stripe_secrets')['api_key']
@@ -138,11 +124,5 @@ def checkout_namespace(event, context):
             success_url='https://www.remote-clipboard.net/success.html?session_id={CHECKOUT_SESSION_ID}',
             cancel_url='https://www.remote-clipboard.net/cancel.html',
         )
-    return {
-        "statusCode": 200,
-        "headers": {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Credentials': 'true',
-        },
-        "body": json.dumps(session)
-    }
+
+    return http_utils.response_with_cors(http_utils.SUCCESS, json.dumps(session))
